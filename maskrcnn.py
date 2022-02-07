@@ -96,17 +96,12 @@ category_index = {k: {'id': k, 'name': ID_MAPPING[k]} for k in ID_MAPPING}
 
 parser = argparse.ArgumentParser(description="Arg parser")
 parser.add_argument(
-    "-image_path", type=str)
+    "-input", type=str)
 parser.add_argument(
     "-output", type=str)
 args = parser.parse_args()
-image_path = args.image_path
-with open(image_path, 'rb') as f:
-  np_image_string = np.array([f.read()])
-  
-image = Image.open(image_path)
-width, height = image.size
-np_image = np.array(image.getdata()).reshape(height, width, 3).astype(np.uint8)
+image_path = args.input
+output_image_path = args.output
 
 use_tpu = True #@param {type:"boolean"}
 if use_tpu:
@@ -126,44 +121,49 @@ else:
 saved_model_dir = 'gs://cloud-tpu-checkpoints/mask-rcnn/1555659850' #@param {type:"string"}
 _ = tf.saved_model.loader.load(session, ['serve'], saved_model_dir)
 
-num_detections, detection_boxes, detection_classes, detection_scores, detection_masks, image_info = session.run(
-    ['NumDetections:0', 'DetectionBoxes:0', 'DetectionClasses:0', 'DetectionScores:0', 'DetectionMasks:0', 'ImageInfo:0'],
-    feed_dict={'Placeholder:0': np_image_string})
+for img_path in os.listdir(args.input):
+    with open(img_path, 'rb') as f:
+      np_image_string = np.array([f.read()])
 
-num_detections = np.squeeze(num_detections.astype(np.int32), axis=(0,))
-detection_boxes = np.squeeze(detection_boxes * image_info[0, 2], axis=(0,))[0:num_detections]
-detection_scores = np.squeeze(detection_scores, axis=(0,))[0:num_detections]
-detection_classes = np.squeeze(detection_classes.astype(np.int32), axis=(0,))[0:num_detections]
-instance_masks = np.squeeze(detection_masks, axis=(0,))[0:num_detections]
-ymin, xmin, ymax, xmax = np.split(detection_boxes, 4, axis=-1)
-processed_boxes = np.concatenate([xmin, ymin, xmax - xmin, ymax - ymin], axis=-1)
-segmentations = coco_metric.generate_segmentation_from_masks(instance_masks, processed_boxes, height, width)
+    image = Image.open(img_path)
+    width, height = image.size
+    np_image = np.array(image.getdata()).reshape(height, width, 3).astype(np.uint8)
 
-max_boxes_to_draw = 50   #@param {type:"integer"}
-min_score_thresh = 0.1    #@param {type:"slider", min:0, max:1, step:0.01}
+    num_detections, detection_boxes, detection_classes, detection_scores, detection_masks, image_info = session.run(
+        ['NumDetections:0', 'DetectionBoxes:0', 'DetectionClasses:0', 'DetectionScores:0', 'DetectionMasks:0', 'ImageInfo:0'],
+        feed_dict={'Placeholder:0': np_image_string})
 
-image_with_detections = visualization_utils.visualize_boxes_and_labels_on_image_array(
-    np_image,
-    detection_boxes,
-    detection_classes,
-    detection_scores,
-    category_index,
-    instance_masks=segmentations,
-    use_normalized_coordinates=False,
-    max_boxes_to_draw=max_boxes_to_draw,
-    min_score_thresh=min_score_thresh)
+    num_detections = np.squeeze(num_detections.astype(np.int32), axis=(0,))
+    detection_boxes = np.squeeze(detection_boxes * image_info[0, 2], axis=(0,))[0:num_detections]
+    detection_scores = np.squeeze(detection_scores, axis=(0,))[0:num_detections]
+    detection_classes = np.squeeze(detection_classes.astype(np.int32), axis=(0,))[0:num_detections]
+    instance_masks = np.squeeze(detection_masks, axis=(0,))[0:num_detections]
+    ymin, xmin, ymax, xmax = np.split(detection_boxes, 4, axis=-1)
+    processed_boxes = np.concatenate([xmin, ymin, xmax - xmin, ymax - ymin], axis=-1)
+    segmentations = coco_metric.generate_segmentation_from_masks(instance_masks, processed_boxes, height, width)
+
+    max_boxes_to_draw = 50   #@param {type:"integer"}
+    min_score_thresh = 0.1    #@param {type:"slider", min:0, max:1, step:0.01}
+
+    image_with_detections = visualization_utils.visualize_boxes_and_labels_on_image_array(
+        np_image,
+        detection_boxes,
+        detection_classes,
+        detection_scores,
+        category_index,
+        instance_masks=segmentations,
+        use_normalized_coordinates=False,
+        max_boxes_to_draw=max_boxes_to_draw,
+        min_score_thresh=min_score_thresh)
 
 
-output_image_path = args.output
+    output_folder = args.output
+    img_masked = np.zeros([np_image.shape[0], np_image.shape[1], 3])
 
-image = Image.open(image_path)
-
-np_image = np.array(image.getdata()).reshape(height, width, 3).astype(np.uint8)
-img_masked = np.zeros([np_image.shape[0], np_image.shape[1], 3])
-
-for i in range(3): 
-  img_masked[:,:,i] = np.multiply(np_image[:,:,i],segmentations[0,:,:])
-  idx_bg = (img_masked[:,:,i]==0)
-  img_masked[idx_bg,i] = 255
-
-Image.fromarray(img_masked.astype(np.uint8)).save(output_image_path)
+    for i in range(3): 
+      img_masked[:,:,i] = np.multiply(np_image[:,:,i],segmentations[0,:,:])
+      idx_bg = (img_masked[:,:,i]==0)
+      img_masked[idx_bg,i] = 255
+    
+    output_image_path = os.path.join(output_folder, img_path.split('.')[0]+'_masked.png')
+    Image.fromarray(img_masked.astype(np.uint8)).save(output_image_path)
