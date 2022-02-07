@@ -1,3 +1,4 @@
+# Import video and convert to frames
 import cv2
 import argparse
 
