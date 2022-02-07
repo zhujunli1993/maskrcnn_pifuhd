@@ -77,7 +77,8 @@ load_state(net, checkpoint)
 
 
 image_dir = 'pifuhd/sample_images'
-for files in os.listdir(image_dir)[0:50]: # Try the first 50 frames
+
+for files in os.listdir(image_dir)[0:20]: # Try the first 20 frames
   if files.endswith('.png'):
     file_ = os.path.join(image_dir, files)
     #file = 'mask.jpg'
