@@ -35,9 +35,11 @@ model.load_weights(filepath="mask_rcnn_coco.h5",
           by_name=True)
 
 for img_path in os.listdir(args.input):
-  if img_path.endwith('.txt'):
+  if img_path.endswith('.txt'):
     img_path = img_path.split('_')[0]+'.png'
+    img_path = os.path.join(args.input,img_path)
     image = cv2.imread(img_path)
+    print(img_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     r = model.detect([image], verbose=0)
