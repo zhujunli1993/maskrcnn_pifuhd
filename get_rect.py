@@ -78,3 +78,5 @@ for file in os.listdir(image_dir)[0:50]: # Try the first 50 frames
   file = os.path.join(image_dir, file)
   #file = 'mask.jpg'
   get_rect(net.cuda(), [file], 512)
+
+
