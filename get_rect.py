@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 import sys
-sys.path.append('lightweight-human-pose-estimation.pytorch')
+sys.path.insert(0, 'lightweight-human-pose-estimation.pytorch')
 import models.with_mobilenet import PoseEstimationWithMobileNet
 from modules.keypoints import extract_keypoints, group_keypoints
 from modules.load_state import load_state
